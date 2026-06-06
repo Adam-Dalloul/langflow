@@ -16,6 +16,7 @@ from lfx.custom import Component
 from lfx.io import IntInput, MessageTextInput, Output, TabInput
 from lfx.schema import DataFrame
 from lfx.utils.request_utils import get_user_agent
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_url_for_ssrf
 
 
 class WebSearchComponent(Component):
@@ -189,9 +190,15 @@ class WebSearchComponent(Component):
 
                 try:
                     final_url = self.ensure_url(decoded_link)
+                    # Security: result links are followed server-side; block SSRF to
+                    # internal/metadata endpoints before fetching page content.
+                    validate_url_for_ssrf(final_url)
                     page = requests.get(final_url, headers=headers, timeout=self.timeout)
                     page.raise_for_status()
                     content = BeautifulSoup(page.text, "lxml").get_text(separator=" ", strip=True)
+                except SSRFProtectionError as e:
+                    final_url = decoded_link
+                    content = f"(Blocked by SSRF protection: {e!s}"
                 except requests.RequestException as e:
                     final_url = decoded_link
                     content = f"(Failed to fetch: {e!s}"
@@ -278,6 +285,9 @@ class WebSearchComponent(Component):
             )
 
         try:
+            # Security: rss_url is fully tenant-controlled. Block SSRF to internal/metadata
+            # endpoints before fetching (SSRFProtectionError is a ValueError, caught below).
+            validate_url_for_ssrf(rss_url)
             response = requests.get(rss_url, timeout=self.timeout)
             response.raise_for_status()
             if not response.content.strip():

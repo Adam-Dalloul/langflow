@@ -4,6 +4,7 @@ from lfx.io import BoolInput, IntInput, MessageTextInput, MultiselectInput
 from lfx.schema.data import Data
 from lfx.schema.dataframe import DataFrame
 from lfx.template.field.base import Output
+from lfx.utils.file_path_security import enforce_local_file_access
 
 
 class DirectoryComponent(Component):
@@ -84,6 +85,10 @@ class DirectoryComponent(Component):
         use_multithreading = self.use_multithreading
 
         resolved_path = self.resolve_path(path)
+
+        # Security: confine directory reads to the storage dir in restricted (multi-tenant)
+        # mode so a tenant cannot recursively read arbitrary server directories.
+        resolved_path = str(enforce_local_file_access(resolved_path))
 
         # If no types are specified, use all supported types
         if not types:
