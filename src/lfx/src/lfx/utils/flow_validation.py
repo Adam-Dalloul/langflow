@@ -14,6 +14,30 @@ INITIALIZING_COMPONENT_TEMPLATES_MESSAGE = (
 )
 SETTINGS_SERVICE_REQUIRED_MESSAGE = "Settings service must be initialized before validating flows."
 
+# Built-in components that execute arbitrary Python supplied through their *input fields*
+# (not the validated class `code` field). Their class-code hash is valid, so they pass the
+# allow_custom_components policy, yet they are effectively a custom-code-authoring surface.
+# Identifiers include class names plus their `name`/`display_name` aliases so the check
+# matches whatever value the node carries in ``data.type``. Enforced when
+# ``block_code_interpreter_components`` is enabled. Keep this set in sync with the components
+# that call exec()/eval() on user input under src/lfx/src/lfx/components/.
+CODE_EXECUTION_COMPONENT_TYPES: frozenset[str] = frozenset(
+    {
+        # tools/python_code_structured_tool.py — exec(self.tool_code, globals())
+        "PythonCodeStructuredTool",
+        # utilities/python_repl_core.py — Python Interpreter (exec via PythonREPL)
+        "PythonREPLComponent",
+        "Python Interpreter",
+        # tools/python_repl.py — Python REPL tool (exec via PythonREPL)
+        "PythonREPLToolComponent",
+        "PythonREPLTool",
+        "Python REPL",
+        # llm_operations/lambda_filter.py — eval() of an LLM-generated lambda
+        "LambdaFilterComponent",
+        "Smart Transform",
+    }
+)
+
 
 class CustomComponentValidationError(ValueError):
     """Raised when a flow fails custom-component policy validation.
@@ -150,6 +174,54 @@ def _get_invalid_components(
     return blocked, outdated
 
 
+def _find_code_execution_components(nodes: list[dict]) -> list[str]:
+    """Return labels for every node whose type is a built-in code-execution component.
+
+    Recurses into nested/sub-flow node payloads so a code-execution component cannot be
+    hidden inside an embedded flow definition.
+    """
+    found: list[str] = []
+
+    for node in nodes:
+        node_data = node.get("data", {})
+        node_info = node_data.get("node", {})
+
+        component_type = node_data.get("type")
+        if isinstance(component_type, str) and component_type in CODE_EXECUTION_COMPONENT_TYPES:
+            display_name = node_info.get("display_name") or component_type
+            node_id = node_data.get("id") or node.get("id", "unknown")
+            found.append(f"{display_name} ({node_id})")
+
+        flow_data = node_info.get("flow", {})
+        if isinstance(flow_data, dict):
+            nested_nodes = flow_data.get("data", {}).get("nodes", [])
+            if nested_nodes:
+                found.extend(_find_code_execution_components(nested_nodes))
+
+    return found
+
+
+def check_code_execution_components_and_raise(flow_data: dict | None) -> None:
+    """Block flows containing built-in arbitrary-code-execution components.
+
+    Called when ``block_code_interpreter_components`` is enabled. Raises
+    :class:`CustomComponentValidationError` if any code-execution component is present.
+    """
+    if not flow_data:
+        return
+
+    nodes = flow_data.get("nodes", [])
+    if not nodes:
+        return
+
+    found = _find_code_execution_components(nodes)
+    if found:
+        names = ", ".join(found)
+        logger.warning(f"Flow build blocked: code-execution components are disabled: {names}")
+        message = f"Flow build blocked: code-execution components are not allowed: {names}"
+        raise CustomComponentValidationError(message)
+
+
 def code_hash_matches_any_template(code: str, all_known_hashes: set[str]) -> bool:
     """Check whether code matches any known component template hash."""
     return _compute_code_hash(code) in all_known_hashes
@@ -212,17 +284,25 @@ def validate_flow_for_current_settings(target: Mapping[str, Any] | Any | None) -
         raise RuntimeError(SETTINGS_SERVICE_REQUIRED_MESSAGE)
 
     allow_custom_components = settings_service.settings.allow_custom_components
+    block_code_interpreter_components = getattr(
+        settings_service.settings, "block_code_interpreter_components", False
+    )
     normalized_flow_data = _extract_flow_data(target)
 
-    # If custom components are disabled and we received a target but couldn't
-    # extract any flow data from it, fail fast rather than silently skipping
-    # validation — the caller passed something we can't verify.
-    if not allow_custom_components and target is not None and normalized_flow_data is None:
+    # If a blocking policy is active and we received a target but couldn't extract any flow
+    # data from it, fail fast rather than silently skipping validation — the caller passed
+    # something we can't verify.
+    if (not allow_custom_components or block_code_interpreter_components) and (
+        target is not None and normalized_flow_data is None
+    ):
         msg = (
             "Flow validation failed: could not extract graph data from the provided target. "
             "Ensure the flow payload or Graph object contains valid graph data."
         )
         raise CustomComponentValidationError(msg)
+
+    if block_code_interpreter_components:
+        check_code_execution_components_and_raise(normalized_flow_data)
 
     type_to_current_hash = get_component_hash_lookups_for_validation() if not allow_custom_components else None
 

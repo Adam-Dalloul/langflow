@@ -517,6 +517,20 @@ class Settings(BaseSettings):
     Has no effect when allow_custom_components is True (the flag is not blocking anything
     to override)."""
 
+    block_code_interpreter_components: bool = False
+    """If set to True, blocks execution of any flow that contains a built-in
+    arbitrary-code-execution component (Python Interpreter, Python REPL/Code tools, and the
+    Smart Transform / lambda evaluator).
+
+    These components are official, so their class-code hash is valid and they pass the
+    ``allow_custom_components=False`` policy — yet they execute arbitrary Python supplied
+    through their *input fields*, which is equivalent to letting users author custom code.
+
+    Defaults to False to preserve existing behavior. Multi-tenant / untrusted-user
+    deployments that disallow user-authored components should set this to True (alongside
+    ``LANGFLOW_ALLOW_CUSTOM_COMPONENTS=false``) so these code-execution primitives cannot be
+    used to break out of the component allow-list."""
+
     # SSRF Protection
     ssrf_protection_enabled: bool = True
     """If set to True, Langflow will enable SSRF (Server-Side Request Forgery) protection.
