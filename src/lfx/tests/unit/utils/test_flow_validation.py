@@ -99,6 +99,12 @@ def test_validate_flow_for_current_settings_requires_settings_service(monkeypatc
         "PythonREPLToolComponent",
         "LambdaFilterComponent",
         "Smart Transform",  # alias must also be caught
+        # Code-agent components run LLM-generated Python in-process (smolagents local
+        # executor / DS-Star bare exec); they must be covered by the same block list.
+        "CodeActAgentSmolagents",
+        "CodeAct Agent (Smolagents)",  # display-name alias
+        "OpenDsStarAgent",
+        "OpenDsStar Agent",  # display-name alias
     ],
 )
 def test_block_code_interpreter_components_blocks_flow(monkeypatch, component_type):

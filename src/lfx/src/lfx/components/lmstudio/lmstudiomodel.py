@@ -8,6 +8,7 @@ from lfx.base.models.model import LCModelComponent
 from lfx.field_typing import LanguageModel
 from lfx.field_typing.range_spec import RangeSpec
 from lfx.inputs.inputs import DictInput, DropdownInput, FloatInput, IntInput, SecretStrInput, StrInput
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_url_for_ssrf
 
 
 class LMStudioModelComponent(LCModelComponent):
@@ -24,9 +25,15 @@ class LMStudioModelComponent(LCModelComponent):
             if base_url_load_from_db:
                 base_url_value = await self.get_variables(base_url_value, field_name)
             try:
+                models_url = urljoin(base_url_value, "/v1/models")
+                # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+                validate_url_for_ssrf(models_url)
                 async with httpx.AsyncClient() as client:
-                    response = await client.get(urljoin(base_url_value, "/v1/models"), timeout=2.0)
+                    response = await client.get(models_url, timeout=2.0)
                     response.raise_for_status()
+            except SSRFProtectionError:
+                self.log("LM Studio base_url blocked by SSRF protection.")
+                return build_config
             except httpx.HTTPError:
                 msg = "Could not access the default LM Studio URL. Please, specify the 'Base URL' field."
                 self.log(msg)
@@ -39,6 +46,8 @@ class LMStudioModelComponent(LCModelComponent):
     async def get_model(base_url_value: str) -> list[str]:
         try:
             url = urljoin(base_url_value, "/v1/models")
+            # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+            validate_url_for_ssrf(url)
             async with httpx.AsyncClient() as client:
                 response = await client.get(url)
                 response.raise_for_status()

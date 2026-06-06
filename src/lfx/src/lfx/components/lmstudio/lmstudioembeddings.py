@@ -7,6 +7,7 @@ from lfx.base.embeddings.model import LCEmbeddingsModel
 from lfx.field_typing import Embeddings
 from lfx.inputs.inputs import DropdownInput, SecretStrInput
 from lfx.io import FloatInput, MessageTextInput
+from lfx.utils.ssrf_protection import validate_url_for_ssrf
 
 
 class LMStudioEmbeddingsComponent(LCEmbeddingsModel):
@@ -31,6 +32,8 @@ class LMStudioEmbeddingsComponent(LCEmbeddingsModel):
     async def get_model(base_url_value: str) -> list[str]:
         try:
             url = urljoin(base_url_value, "/v1/models")
+            # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+            validate_url_for_ssrf(url)
             async with httpx.AsyncClient() as client:
                 response = await client.get(url)
                 response.raise_for_status()

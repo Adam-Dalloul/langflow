@@ -9,6 +9,7 @@ from lfx.base.langchain_utilities.model import LCToolComponent
 from lfx.field_typing import Tool
 from lfx.inputs.inputs import SecretStrInput, StrInput
 from lfx.schema.data import Data
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_url_for_ssrf
 
 
 class HomeAssistantControl(LCToolComponent):
@@ -126,6 +127,9 @@ class HomeAssistantControl(LCToolComponent):
             domain = entity_id.split(".")[0]  # switch, light, cover, etc.
             url = f"{base_url}/api/services/{domain}/{action}"
 
+            # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+            validate_url_for_ssrf(url)
+
             headers = {
                 "Authorization": f"Bearer {ha_token}",
                 "Content-Type": "application/json",
@@ -136,6 +140,8 @@ class HomeAssistantControl(LCToolComponent):
             response.raise_for_status()
 
             return response.json()  # HA response JSON on success
+        except SSRFProtectionError as e:
+            return f"Error: base_url blocked by SSRF protection. {e}"
         except requests.exceptions.RequestException as e:
             return f"Error: Failed to call service. {e}"
         except Exception as e:  # noqa: BLE001

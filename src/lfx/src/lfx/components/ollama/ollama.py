@@ -28,6 +28,7 @@ from lfx.log.logger import logger
 from lfx.schema.data import Data
 from lfx.schema.dataframe import DataFrame
 from lfx.schema.table import EditMode
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_url_for_ssrf
 from lfx.utils.util import transform_localhost_url
 
 HTTP_STATUS_OK = 200
@@ -322,9 +323,14 @@ class ChatOllamaComponent(LCModelComponent):
                 url = url.rstrip("/").removesuffix("/v1")
                 if not url.endswith("/"):
                     url = url + "/"
-                return (
-                    await client.get(url=urljoin(url, "api/tags"), headers=self.headers)
-                ).status_code == HTTP_STATUS_OK
+                tags_url = urljoin(url, "api/tags")
+                # base_url is tenant-controlled and fetched during build-config edits:
+                # block SSRF to internal/cloud-metadata hosts.
+                validate_url_for_ssrf(tags_url)
+                return (await client.get(url=tags_url, headers=self.headers)).status_code == HTTP_STATUS_OK
+        except SSRFProtectionError:
+            logger.warning("Ollama URL blocked by SSRF protection: %s", url)
+            return False
         except httpx.RequestError:
             return False
 
