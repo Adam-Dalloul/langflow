@@ -96,7 +96,10 @@ def test_validate_flow_for_current_settings_requires_settings_service(monkeypatc
     [
         "PythonREPLComponent",
         "PythonCodeStructuredTool",
+        "Python Code Structured",  # display_name alias must also be caught (bypass regression)
         "PythonREPLToolComponent",
+        "PythonFunction",  # prototypes/python_function.py — exec of user function_code
+        "Python Function",  # display_name alias
         "LambdaFilterComponent",
         "Smart Transform",  # alias must also be caught
         # Code-agent components run LLM-generated Python in-process (smolagents local

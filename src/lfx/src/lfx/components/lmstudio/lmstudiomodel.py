@@ -8,7 +8,7 @@ from lfx.base.models.model import LCModelComponent
 from lfx.field_typing import LanguageModel
 from lfx.field_typing.range_spec import RangeSpec
 from lfx.inputs.inputs import DictInput, DropdownInput, FloatInput, IntInput, SecretStrInput, StrInput
-from lfx.utils.ssrf_protection import SSRFProtectionError, validate_url_for_ssrf
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_connector_url_for_ssrf
 
 
 class LMStudioModelComponent(LCModelComponent):
@@ -27,7 +27,7 @@ class LMStudioModelComponent(LCModelComponent):
             try:
                 models_url = urljoin(base_url_value, "/v1/models")
                 # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
-                validate_url_for_ssrf(models_url)
+                validate_connector_url_for_ssrf(models_url)
                 async with httpx.AsyncClient() as client:
                     response = await client.get(models_url, timeout=2.0)
                     response.raise_for_status()
@@ -47,7 +47,7 @@ class LMStudioModelComponent(LCModelComponent):
         try:
             url = urljoin(base_url_value, "/v1/models")
             # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
-            validate_url_for_ssrf(url)
+            validate_connector_url_for_ssrf(url)
             async with httpx.AsyncClient() as client:
                 response = await client.get(url)
                 response.raise_for_status()

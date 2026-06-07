@@ -23,8 +23,12 @@ SETTINGS_SERVICE_REQUIRED_MESSAGE = "Settings service must be initialized before
 # that call exec()/eval() on user input under src/lfx/src/lfx/components/.
 CODE_EXECUTION_COMPONENT_TYPES: frozenset[str] = frozenset(
     {
-        # tools/python_code_structured_tool.py — exec(self.tool_code, globals())
+        # tools/python_code_structured_tool.py — exec(self.tool_code, globals()).
+        # NOTE: list EVERY alias (class name, ``name``, ``display_name``) of each component:
+        # a node's ``data.type`` may be any alias under which the code hash is registered, so a
+        # missing alias (e.g. the display_name) lets a hash-valid node slip past this block.
         "PythonCodeStructuredTool",
+        "Python Code Structured",  # display_name — must be listed or the block is bypassable
         # utilities/python_repl_core.py — Python Interpreter (exec via PythonREPL)
         "PythonREPLComponent",
         "Python Interpreter",
@@ -32,6 +36,10 @@ CODE_EXECUTION_COMPONENT_TYPES: frozenset[str] = frozenset(
         "PythonREPLToolComponent",
         "PythonREPLTool",
         "Python REPL",
+        # prototypes/python_function.py — exec of user `function_code` via create_function()
+        "PythonFunctionComponent",
+        "PythonFunction",
+        "Python Function",
         # llm_operations/lambda_filter.py — eval() of an LLM-generated lambda
         "LambdaFilterComponent",
         "Smart Transform",

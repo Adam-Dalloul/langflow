@@ -9,6 +9,7 @@ from lfx.base.models.model import LCModelComponent
 from lfx.field_typing import Embeddings
 from lfx.io import DropdownInput, Output, SecretStrInput, StrInput
 from lfx.log.logger import logger
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_connector_url_for_ssrf
 from lfx.utils.util import transform_localhost_url
 
 HTTP_STATUS_OK = 200
@@ -133,6 +134,10 @@ class OllamaEmbeddingsComponent(LCModelComponent):
             # Ollama REST API to return model capabilities
             show_url = urljoin(base_url, "api/show")
 
+            # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts. The
+            # host is shared by both endpoints, so validating one covers the POST to show_url too.
+            validate_connector_url_for_ssrf(tags_url)
+
             async with httpx.AsyncClient() as client:
                 headers = self.headers
                 # Fetch available models
@@ -178,8 +183,13 @@ class OllamaEmbeddingsComponent(LCModelComponent):
                 url = url.rstrip("/").removesuffix("/v1")
                 if not url.endswith("/"):
                     url = url + "/"
-                return (
-                    await client.get(url=urljoin(url, "api/tags"), headers=self.headers)
-                ).status_code == HTTP_STATUS_OK
+                tags_url = urljoin(url, "api/tags")
+                # base_url is tenant-controlled and fetched during build-config edits:
+                # block SSRF to internal/cloud-metadata hosts.
+                validate_connector_url_for_ssrf(tags_url)
+                return (await client.get(url=tags_url, headers=self.headers)).status_code == HTTP_STATUS_OK
+        except SSRFProtectionError:
+            logger.warning("Ollama URL blocked by SSRF protection: %s", url)
+            return False
         except httpx.RequestError:
             return False

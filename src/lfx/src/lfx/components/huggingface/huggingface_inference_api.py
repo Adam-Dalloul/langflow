@@ -10,6 +10,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 from lfx.base.embeddings.model import LCEmbeddingsModel
 from lfx.field_typing import Embeddings
 from lfx.io import MessageTextInput, Output, SecretStrInput
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_connector_url_for_ssrf
 
 
 class HuggingFaceInferenceAPIEmbeddingsComponent(LCEmbeddingsModel):
@@ -56,8 +57,15 @@ class HuggingFaceInferenceAPIEmbeddingsComponent(LCEmbeddingsModel):
             )
             raise ValueError(msg)
 
+        health_url = f"{inference_endpoint}/health"
         try:
-            response = requests.get(f"{inference_endpoint}/health", timeout=5)
+            # inference_endpoint is tenant-controlled: block SSRF to internal/cloud-metadata
+            # hosts. allow_redirects=False so a 3xx cannot bypass the validated-host check.
+            validate_connector_url_for_ssrf(health_url)
+            response = requests.get(health_url, timeout=5, allow_redirects=False)
+        except SSRFProtectionError as e:
+            msg = f"Inference endpoint blocked by SSRF protection: {e}"
+            raise ValueError(msg) from e
         except requests.RequestException as e:
             msg = (
                 f"Inference endpoint '{inference_endpoint}' is not responding. "

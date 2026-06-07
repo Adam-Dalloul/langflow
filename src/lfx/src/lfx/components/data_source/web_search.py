@@ -193,7 +193,9 @@ class WebSearchComponent(Component):
                     # Security: result links are followed server-side; block SSRF to
                     # internal/metadata endpoints before fetching page content.
                     validate_url_for_ssrf(final_url)
-                    page = requests.get(final_url, headers=headers, timeout=self.timeout)
+                    # allow_redirects=False: validation only covers the initial host, so a 3xx
+                    # to an internal/metadata host would otherwise bypass the SSRF guard.
+                    page = requests.get(final_url, headers=headers, timeout=self.timeout, allow_redirects=False)
                     page.raise_for_status()
                     content = BeautifulSoup(page.text, "lxml").get_text(separator=" ", strip=True)
                 except SSRFProtectionError as e:
@@ -288,7 +290,9 @@ class WebSearchComponent(Component):
             # Security: rss_url is fully tenant-controlled. Block SSRF to internal/metadata
             # endpoints before fetching (SSRFProtectionError is a ValueError, caught below).
             validate_url_for_ssrf(rss_url)
-            response = requests.get(rss_url, timeout=self.timeout)
+            # allow_redirects=False: validation only covers the initial host, so a 3xx to an
+            # internal/metadata host would otherwise bypass the SSRF guard.
+            response = requests.get(rss_url, timeout=self.timeout, allow_redirects=False)
             response.raise_for_status()
             if not response.content.strip():
                 msg = "Empty response received"

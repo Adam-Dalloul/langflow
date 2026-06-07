@@ -6,6 +6,7 @@ from lfx.field_typing import LanguageModel
 from lfx.field_typing.range_spec import RangeSpec
 from lfx.inputs.inputs import IntInput, SecretStrInput, SliderInput, StrInput
 from lfx.utils.secrets import secret_value_to_str
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_connector_url_for_ssrf
 
 
 class LiteLLMProxyComponent(LCModelComponent):
@@ -92,11 +93,16 @@ class LiteLLMProxyComponent(LCModelComponent):
         models_url = f"{base_url}/models"
 
         try:
+            # api_base is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+            validate_connector_url_for_ssrf(models_url)
             response = httpx.get(
                 models_url,
                 headers={"Authorization": f"Bearer {api_key}"},
                 timeout=10,
             )
+        except SSRFProtectionError as e:
+            msg = f"LiteLLM Proxy URL blocked by SSRF protection: {e}"
+            raise ValueError(msg) from e
         except httpx.ConnectError as e:
             msg = (
                 f"Could not connect to LiteLLM Proxy at {base_url}. Verify the URL is correct and the proxy is running."

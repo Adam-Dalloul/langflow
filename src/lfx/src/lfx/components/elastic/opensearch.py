@@ -12,6 +12,7 @@ from lfx.base.vectorstores.vector_store_connection_decorator import vector_store
 from lfx.io import BoolInput, DropdownInput, HandleInput, IntInput, MultilineInput, SecretStrInput, StrInput, TableInput
 from lfx.log import logger
 from lfx.schema.data import Data
+from lfx.utils.ssrf_protection import validate_connector_url_for_ssrf
 
 
 @vector_store_connection
@@ -450,6 +451,8 @@ class OpenSearchVectorStoreComponent(LCVectorStoreComponent):
             Configured OpenSearch client ready for operations
         """
         auth_kwargs = self._build_auth_kwargs()
+        # opensearch_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+        validate_connector_url_for_ssrf(self.opensearch_url)
         return OpenSearch(
             hosts=[self.opensearch_url],
             use_ssl=self.use_ssl,

@@ -6,6 +6,7 @@ from lfx.base.models.model import LCModelComponent
 from lfx.field_typing import LanguageModel
 from lfx.field_typing.range_spec import RangeSpec
 from lfx.inputs.inputs import BoolInput, DictInput, DropdownInput, IntInput, SecretStrInput, SliderInput, StrInput
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_connector_url_for_ssrf
 
 DEEPSEEK_MODELS = ["deepseek-chat"]
 
@@ -83,10 +84,16 @@ class DeepSeekModelComponent(LCModelComponent):
         headers = {"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"}
 
         try:
-            response = requests.get(url, headers=headers, timeout=10)
+            # api_base is tenant-controlled and fetched during build-config edits: block SSRF
+            # to internal/cloud-metadata hosts. allow_redirects=False so a 3xx cannot bypass it.
+            validate_connector_url_for_ssrf(url)
+            response = requests.get(url, headers=headers, timeout=10, allow_redirects=False)
             response.raise_for_status()
             model_list = response.json()
             return [model["id"] for model in model_list.get("data", [])]
+        except SSRFProtectionError as e:
+            self.status = f"api_base blocked by SSRF protection: {e}"
+            return DEEPSEEK_MODELS
         except requests.RequestException as e:
             self.status = f"Error fetching models: {e}"
             return DEEPSEEK_MODELS

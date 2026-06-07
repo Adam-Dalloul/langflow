@@ -9,7 +9,7 @@ from lfx.base.langchain_utilities.model import LCToolComponent
 from lfx.field_typing import Tool
 from lfx.inputs.inputs import SecretStrInput, StrInput
 from lfx.schema.data import Data
-from lfx.utils.ssrf_protection import SSRFProtectionError, validate_url_for_ssrf
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_connector_url_for_ssrf
 
 
 class HomeAssistantControl(LCToolComponent):
@@ -128,7 +128,7 @@ class HomeAssistantControl(LCToolComponent):
             url = f"{base_url}/api/services/{domain}/{action}"
 
             # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
-            validate_url_for_ssrf(url)
+            validate_connector_url_for_ssrf(url)
 
             headers = {
                 "Authorization": f"Bearer {ha_token}",
@@ -136,7 +136,9 @@ class HomeAssistantControl(LCToolComponent):
             }
             payload = {"entity_id": entity_id}
 
-            response = requests.post(url, headers=headers, json=payload, timeout=10)
+            # allow_redirects=False: validation only covers the initial host, so a 3xx to an
+            # internal/metadata host would otherwise bypass the SSRF guard.
+            response = requests.post(url, headers=headers, json=payload, timeout=10, allow_redirects=False)
             response.raise_for_status()
 
             return response.json()  # HA response JSON on success

@@ -5,6 +5,7 @@ from lfx.base.vectorstores.model import LCVectorStoreComponent, check_cached_vec
 from lfx.helpers.data import docs_to_data
 from lfx.io import HandleInput, IntInput, SecretStrInput, StrInput
 from lfx.schema.data import Data
+from lfx.utils.ssrf_protection import validate_connector_url_for_ssrf
 
 
 class SupabaseVectorStoreComponent(LCVectorStoreComponent):
@@ -31,6 +32,8 @@ class SupabaseVectorStoreComponent(LCVectorStoreComponent):
 
     @check_cached_vector_store
     def build_vector_store(self) -> SupabaseVectorStore:
+        # supabase_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+        validate_connector_url_for_ssrf(self.supabase_url)
         supabase: Client = create_client(self.supabase_url, supabase_key=self.supabase_service_key)
 
         # Convert DataFrame to Data if needed using parent's method

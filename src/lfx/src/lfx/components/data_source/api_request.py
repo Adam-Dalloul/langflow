@@ -803,8 +803,11 @@ class APIRequestComponent(Component):
             content_disposition = response.headers["Content-Disposition"]
             filename_match = re.search(r'filename="(.+?)"', content_disposition)
             if filename_match:
-                extracted_filename = filename_match.group(1)
-                filename = extracted_filename
+                # The Content-Disposition header is controlled by the (tenant-chosen) remote
+                # server. Reduce it to a bare basename so a value like "../../etc/cron.d/x"
+                # cannot traverse out of component_temp_dir into an arbitrary write location.
+                extracted_filename = Path(filename_match.group(1)).name
+                filename = extracted_filename or None
 
         # Step 3: Infer file extension or use part of the request URL if no filename
         if not filename:

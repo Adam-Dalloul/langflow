@@ -9,7 +9,7 @@ from lfx.base.langchain_utilities.model import LCToolComponent
 from lfx.field_typing import Tool
 from lfx.inputs.inputs import SecretStrInput, StrInput
 from lfx.schema.data import Data
-from lfx.utils.ssrf_protection import SSRFProtectionError, validate_url_for_ssrf
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_connector_url_for_ssrf
 
 
 class ListHomeAssistantStates(LCToolComponent):
@@ -106,8 +106,10 @@ class ListHomeAssistantStates(LCToolComponent):
             url = f"{base_url}/api/states"
             # base_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts
             # (a trailing #/? in base_url cannot redirect the validated host).
-            validate_url_for_ssrf(url)
-            response = requests.get(url, headers=headers, timeout=10)
+            validate_connector_url_for_ssrf(url)
+            # allow_redirects=False: validation only covers the initial host, so a 3xx to the
+            # cloud-metadata endpoint would otherwise bypass the SSRF guard.
+            response = requests.get(url, headers=headers, timeout=10, allow_redirects=False)
             response.raise_for_status()
 
             all_states = response.json()

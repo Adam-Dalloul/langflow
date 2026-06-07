@@ -26,6 +26,7 @@ from lfx.io import (
 from lfx.log import logger
 from lfx.schema.data import Data
 from lfx.schema.dataframe import Table
+from lfx.utils.ssrf_protection import validate_connector_url_for_ssrf
 
 REQUEST_TIMEOUT = 60
 MAX_RETRIES = 5
@@ -861,6 +862,8 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
         """
         logger.debug("[OpenSearchMultimodel] Building OpenSearch client")
         auth_kwargs = self._build_auth_kwargs()
+        # opensearch_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+        validate_connector_url_for_ssrf(self.opensearch_url)
         return OpenSearch(
             hosts=[self.opensearch_url],
             use_ssl=self.use_ssl,

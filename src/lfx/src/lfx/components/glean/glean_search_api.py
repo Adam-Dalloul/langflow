@@ -13,6 +13,7 @@ from lfx.inputs.inputs import IntInput, MultilineInput, NestedDictInput, SecretS
 from lfx.io import Output
 from lfx.schema.data import Data
 from lfx.schema.dataframe import DataFrame
+from lfx.utils.ssrf_protection import validate_connector_url_for_ssrf
 
 
 class GleanSearchAPISchema(BaseModel):
@@ -39,8 +40,13 @@ class GleanAPIWrapper(BaseModel):
         if not url.endswith("/"):
             url += "/"
 
+        search_url = urljoin(url, "search")
+        # glean_api_url is tenant-controlled: block SSRF to internal/cloud-metadata hosts
+        # before the bearer token is sent to it.
+        validate_connector_url_for_ssrf(search_url)
+
         return {
-            "url": urljoin(url, "search"),
+            "url": search_url,
             "headers": {
                 "Authorization": f"Bearer {self.glean_access_token}",
                 "X-Scio-ActAs": self.act_as,

@@ -15,6 +15,7 @@ from lfx.inputs.inputs import (
     SecretStrInput,
     SliderInput,
 )
+from lfx.utils.ssrf_protection import SSRFProtectionError, validate_connector_url_for_ssrf
 
 XAI_DEFAULT_MODELS = ["grok-2-latest"]
 
@@ -97,7 +98,10 @@ class XAIModelComponent(LCModelComponent):
         headers = {"Authorization": f"Bearer {self.api_key}", "Accept": "application/json"}
 
         try:
-            response = requests.get(url, headers=headers, timeout=10)
+            # base_url is tenant-controlled and fetched during build-config edits: block SSRF
+            # to internal/cloud-metadata hosts. allow_redirects=False so a 3xx cannot bypass it.
+            validate_connector_url_for_ssrf(url)
+            response = requests.get(url, headers=headers, timeout=10, allow_redirects=False)
             response.raise_for_status()
             data = response.json()
 
@@ -108,6 +112,9 @@ class XAIModelComponent(LCModelComponent):
                 models.update(model.get("aliases", []))
 
             return sorted(models) if models else XAI_DEFAULT_MODELS
+        except SSRFProtectionError as e:
+            self.status = f"base_url blocked by SSRF protection: {e}"
+            return XAI_DEFAULT_MODELS
         except requests.RequestException as e:
             self.status = f"Error fetching models: {e}"
             return XAI_DEFAULT_MODELS

@@ -8,6 +8,7 @@ from lfx.base.vectorstores.model import LCVectorStoreComponent, check_cached_vec
 from lfx.helpers.data import docs_to_data
 from lfx.io import BoolInput, HandleInput, IntInput, SecretStrInput, StrInput
 from lfx.schema.data import Data
+from lfx.utils.ssrf_protection import validate_connector_url_for_ssrf
 
 # Weaviate Cloud hostnames end with these suffixes. For those the v4 client
 # resolves the gRPC endpoint internally, so we avoid guessing a gRPC host/port.
@@ -65,6 +66,8 @@ class WeaviateVectorStoreComponent(LCVectorStoreComponent):
 
     def _connect_client(self) -> weaviate.WeaviateClient:
         """Connect to Weaviate using the v4 client API."""
+        # url is tenant-controlled: block SSRF to internal/cloud-metadata hosts.
+        validate_connector_url_for_ssrf(self.url)
         auth = AuthApiKey(self.api_key) if self.api_key else None
         parsed = urlparse(self.url)
         host = parsed.hostname or "localhost"
