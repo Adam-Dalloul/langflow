@@ -36,7 +36,8 @@ CODE_EXECUTION_COMPONENT_TYPES: frozenset[str] = frozenset(
         "PythonREPLToolComponent",
         "PythonREPLTool",
         "Python REPL",
-        # prototypes/python_function.py — exec of user `function_code` via create_function()
+        # prototypes/python_function.py — exec of user `function_code` via get_function() (which
+        # builds the callable through lfx.custom.validate.create_function → exec)
         "PythonFunctionComponent",
         "PythonFunction",
         "Python Function",
@@ -44,11 +45,12 @@ CODE_EXECUTION_COMPONENT_TYPES: frozenset[str] = frozenset(
         "LambdaFilterComponent",
         "Smart Transform",
         # codeagents/codeact_agent_smolagents.py — runs LLM-generated Python in-process
-        # via smolagents' LocalPythonExecutor, which is explicitly NOT a security sandbox.
+        # via smolagents' LocalPythonInterpreter, which is explicitly NOT a security sandbox.
         "CodeActAgentSmolagents",
         "CodeAct Agent (Smolagents)",
-        # codeagents/open_ds_star_agent.py — DS-Star ExecutorNode runs LLM-generated code
-        # through a bare exec(code, scope, scope) (no restricted interpreter at all).
+        # codeagents/open_ds_star_agent.py — drives the external agents.ds_star executor
+        # (agents.ds_star.ds_star_execute_env), which runs LLM-generated code through a bare
+        # exec(code, scope, scope) (no restricted interpreter at all).
         "OpenDsStarAgent",
         "OpenDsStar Agent",
     }

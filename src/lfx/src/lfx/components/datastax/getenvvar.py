@@ -25,8 +25,9 @@ class GetEnvVar(Component):
 
     def process_inputs(self) -> Message:
         # env_var_name is tenant-controlled: refuse server-reserved/infrastructure secrets
-        # (LANGFLOW_SECRET_KEY, DATABASE_URL, AWS_*, ...) so this component cannot be used to
-        # exfiltrate the host's own secrets in a multi-tenant deployment.
+        # (LANGFLOW_*/LFX_* prefixes plus specific names like DATABASE_URL, AWS_SECRET_ACCESS_KEY)
+        # so this component cannot be used to exfiltrate the host's own secrets in a multi-tenant
+        # deployment.
         if is_protected_env_var(self.env_var_name):
             msg = f"Environment variable {self.env_var_name} is not accessible for security reasons"
             raise ValueError(msg)

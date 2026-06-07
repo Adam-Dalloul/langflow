@@ -234,6 +234,10 @@ class DatabaseVariableService(VariableService, Service):
                 # value must never be a Fernet token. If it is (e.g. a CREDENTIAL row that was
                 # relabeled GENERIC), do NOT decrypt-and-return it — that would leak the secret.
                 if isinstance(variable.value, str) and variable.value.startswith("gAAAAA"):
+                    logger.warning(
+                        f"Skipping variable '{variable.name}': a GENERIC variable holds ciphertext "
+                        "(likely a CREDENTIAL row relabeled GENERIC); not decrypting or returning it."
+                    )
                     continue
                 value = auth_utils.decrypt_api_key(variable.value)
                 if not value:
@@ -356,10 +360,7 @@ class DatabaseVariableService(VariableService, Service):
             and isinstance(db_variable.value, str)
             and db_variable.value.startswith("gAAAAA")
         ):
-            msg = (
-                "Cannot change a credential variable to a generic variable without providing "
-                "a new value."
-            )
+            msg = "Cannot change a credential variable to a generic variable without providing a new value."
             raise ValueError(msg)
 
         # Handle value encryption based on variable type (consistent with update_variable and create_variable)

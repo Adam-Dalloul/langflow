@@ -200,7 +200,7 @@ class WebSearchComponent(Component):
                     content = BeautifulSoup(page.text, "lxml").get_text(separator=" ", strip=True)
                 except SSRFProtectionError as e:
                     final_url = decoded_link
-                    content = f"(Blocked by SSRF protection: {e!s}"
+                    content = f"(Blocked by SSRF protection: {e!s})"
                 except requests.RequestException as e:
                     final_url = decoded_link
                     content = f"(Failed to fetch: {e!s}"
