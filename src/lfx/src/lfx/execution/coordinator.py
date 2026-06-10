@@ -56,8 +56,14 @@ class Coordinator:
             ]
         for unit in units:
             executor = self._registry.get(unit.executor_kind or self._executor_kind)
-            async for item in executor.execute(unit):
-                yield item
+            inner = executor.execute(unit)
+            try:
+                async for item in inner:
+                    yield item
+            finally:
+                aclose = getattr(inner, "aclose", None)
+                if aclose is not None:
+                    await aclose()
 
     async def run_to_completion(
         self,
@@ -79,9 +85,13 @@ class Coordinator:
         inputs: list[dict[str, Any]] | None = None,
         **runtime_options: Any,
     ) -> AsyncIterator[Any]:
-        async for item in self.run(graph, inputs=inputs or [], **runtime_options):
-            if isinstance(item, StepResult):
-                yield item.payload
+        inner = self.run(graph, inputs=inputs or [], **runtime_options)
+        try:
+            async for item in inner:
+                if isinstance(item, StepResult):
+                    yield item.payload
+        finally:
+            await inner.aclose()
 
     @staticmethod
     def _context_value(graph: Any, runtime_options: dict[str, Any], *names: str) -> str | None:
