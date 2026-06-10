@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from typing import TYPE_CHECKING, Any
 
 from lfx.execution.executor import Executor
@@ -42,8 +43,7 @@ class StepflowExecutor(Executor):
         config: Optional ``StepflowConfig`` controlling plugins/routes for local mode.
             If omitted, a default is built that registers the langflow worker.
         worker_command: Command used by the default config to launch the worker.
-            Defaults to ``["uv", "run", "--with", "stepflow-py", "python", "-m",
-            "langflow_stepflow.worker"]``.
+            Defaults to ``[sys.executable, "-m", "langflow_stepflow.worker"]``.
     """
 
     kind = "stepflow"
@@ -143,7 +143,7 @@ class StepflowExecutor(Executor):
     def _worker_invocation(self) -> tuple[str, list[str]]:
         if self._worker_command:
             return self._worker_command[0], list(self._worker_command[1:])
-        return "uv", ["run", "--with", "stepflow-py", "python", "-m", "langflow_stepflow.worker"]
+        return sys.executable, ["-m", "langflow_stepflow.worker"]
 
     @staticmethod
     def _dump_graph(graph: Any) -> dict[str, Any]:
