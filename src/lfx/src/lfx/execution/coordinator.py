@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from lfx.execution.partitioner import identity_partition
 from lfx.execution.types import RunComplete, StepResult
+from lfx.services.capability.protocols import RESERVED_CAPABILITY_RUNTIME_OPTION_KEYS
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Sequence
@@ -34,7 +35,7 @@ class Coordinator:
         inputs: list[dict[str, Any]],
         **runtime_options: Any,
     ) -> AsyncIterator[StepResult | RunComplete]:
-        options = dict(runtime_options)
+        options = self._without_capability_metadata(runtime_options)
         units = identity_partition(graph, inputs=inputs, runtime_options=options)
         if self._capability_service is not None and not self._capability_service.is_passthrough:
             decision = self._capability_service.route(
@@ -50,7 +51,10 @@ class Coordinator:
                 replace(
                     unit,
                     executor_kind=decision.executor_kind,
-                    runtime_options={**unit.runtime_options, **decision.runtime_options},
+                    runtime_options={
+                        **self._without_capability_metadata(unit.runtime_options),
+                        **decision.runtime_options,
+                    },
                 )
                 for unit in units
             ]
@@ -112,3 +116,9 @@ class Coordinator:
         if isinstance(scopes, str):
             return (scopes,)
         return tuple(scopes)
+
+    @staticmethod
+    def _without_capability_metadata(runtime_options: dict[str, Any]) -> dict[str, Any]:
+        return {
+            key: value for key, value in runtime_options.items() if key not in RESERVED_CAPABILITY_RUNTIME_OPTION_KEYS
+        }
